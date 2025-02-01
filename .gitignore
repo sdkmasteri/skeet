@@ -1,0 +1,8 @@
+.vs/
+x64/
+Release/
+Debug/
+*.obj
+*.aps
+*.rc
+*.pch
