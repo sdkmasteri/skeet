@@ -25,7 +25,8 @@ BOOL APIENTRY DllMain( HMODULE hModule,
         AllocConsole();
         SetConsoleTitleA("t.me/g00d_crack / t.me/raze_club");
         freopen("CONOUT$", "w", stdout);
-        CreateThread(0, 0, reinterpret_cast<LPTHREAD_START_ROUTINE>(thread), hModule, 0, 0);
+        DisableThreadLibraryCalls(hModule);
+        CloseHandle(CreateThread(0, 0, reinterpret_cast<LPTHREAD_START_ROUTINE>(thread), 0, 0, 0));
         break;
     }
     return TRUE;
