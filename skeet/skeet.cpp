@@ -689,7 +689,7 @@ bool skeet_t::extra()
     *(uint32_t*)0x4346D644 = ((uint32_t)GetModuleHandleA("client.dll") + 0x1E8100);
 
     *(uint32_t*)0x4346A898 = ((uint32_t)GetModuleHandleA("client.dll") + 0xDF98A0);
-    *(uint32_t*)0x43468D94 = (uint32_t)PatternScan(GetModuleHandleA("gameoverlayrenderer.dll"), "3D ? ? ? ? 73 1A 68 ? ? ? ? E8 ? ? ? ? 8B 0D ? ? ? ? 83 C4 04 8B 01 6A 00 FF 50 14 3B 7B 34"); // ret addr
+    *(uint32_t*)0x43468D94 = (uint32_t)PatternScan(GetModuleHandleA("gameoverlayrenderer.dll"), "3D ? ? ? ? 73 1A 68 ? ? ? ? E8 ? ? ? ? 8B 0D ? ? ? ? 83 C4 04 8B 01 6A 00 FF 50 14 3B 7B 3C"); // ret addr
     *(uint32_t*)0x43468350 = *(uint32_t*)(PatternScan(GetModuleHandleA("gameoverlayrenderer.dll"), "89 1D ? ? ? ? F3 0F 10 83") + 2); // mem ref
 
 
@@ -842,8 +842,8 @@ uint32_t fnv1a(const std::wstring& data) {
     uint32_t hash = offset_basis;
 
     for (wchar_t c : data) {
-        hash ^= c;             // XOR с текущим байтом данных
-        hash *= FNV_prime;     // Умножаем на константу FNV_prime
+        hash ^= c;             // XOR Г± ГІГҐГЄГіГ№ГЁГ¬ ГЎГ Г©ГІГ®Г¬ Г¤Г Г­Г­Г»Гµ
+        hash *= FNV_prime;     // Г“Г¬Г­Г®Г¦Г ГҐГ¬ Г­Г  ГЄГ®Г­Г±ГІГ Г­ГІГі FNV_prime
     }
 
     return hash;
