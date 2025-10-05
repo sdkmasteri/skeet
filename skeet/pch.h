@@ -6,6 +6,7 @@
 
 #ifndef PCH_H
 #define PCH_H
+#define NOMINMAX
 
 #include "Binary/ctx.h"
 #include "Binary/imports.h"

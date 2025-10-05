@@ -1,6 +1,6 @@
 //{{NO_DEPENDENCIES}}
-// Включаемый файл, созданный в Microsoft Visual C++.
-// Используется skeet.rc
+// Microsoft Visual C++ generated include file.
+// Used by skeet.rc
 //
 #define IDR_EXPORTS1                    101
 #define IDR_BINARY1                     102

@@ -10,6 +10,7 @@
 #include <thread>
 #include "skCrypter.h"
 #include "resource.h"
+#include "SkeetSDK/skeetsdk.h"
 
 FILETIME ftime = {};
 
@@ -155,6 +156,7 @@ void Handler::handle(CONTEXT& ctx)
 {
     if (ctx.Eip == 0x43495251) {
       std::memcpy((void*)ctx.Eax, initialization_info, sizeof(initialization_info));
+	  std::cout << std::hex << "[INFO] EAX: " << ctx.Eax << "\n";
     }
 
     switch (this->mnem) {
@@ -200,6 +202,25 @@ static LONG __stdcall skeet_exception_handler(EXCEPTION_POINTERS* ExceptionInfo)
     static int c = 0;
     auto& ctx = contexts[c];
     if (exception_ctx->Eip >= skeet_t::getInstance()->base() && exception_ctx->Eip < skeet_t::getInstance()->base() + skeet_t::getInstance()->size()) {
+
+        // We will just check menu changing
+        // Its like listening event
+        // Scince its code part executed only when menu fades out
+        // We even can do this without hijacking or 
+        if (exception_ctx->Eip == 0x4338414C)
+        {
+
+            // perform pop edi
+            exception_ctx->Edi = *(DWORD*)exception_ctx->Esp;
+            exception_ctx->Esp += sizeof(exception_ctx->Edi);
+            exception_ctx->Eip++;
+            
+            extern volatile HANDLE hthread;
+            ResumeThread(hthread);
+
+            return EXCEPTION_CONTINUE_EXECUTION;
+        };
+
         auto it = std::find_if(handlers.begin(), handlers.end(), [&](const Handler& other) {
             return exception_ctx->Eip >= other.addr && exception_ctx->Eip < other.addr + other.len;
             });
@@ -238,14 +259,15 @@ static LONG __stdcall skeet_exception_handler(EXCEPTION_POINTERS* ExceptionInfo)
                 MessageBoxA(0, "undefined behaviour", "error", 2);
                 return EXCEPTION_CONTINUE_SEARCH;
             }
-            std::cout << skCrypt("[t.me/g00d_crack]") << std::dec << c - 1 << " | " << std::hex << " [RAX]: " << ctx.rax << " |  rip handling... " << ctx.current_rip << " to rip " << ctx.rip << " | total size " << std::dec << contexts.size() << "\n";
+            std::cout << skCrypt("[INFO]") << std::dec << c - 1 << " | " << std::hex << " [RAX]: " << ctx.rax << " |  rip handling... " << ctx.current_rip << " to rip " << ctx.rip << " | total size " << std::dec << contexts.size() << "\n";
+            if (ctx.rip == 0x434E552C)
+            {
+                extern unsigned int start_signal;
+                InterlockedExchange(&start_signal, 1);
+            };
         }
         else {
             it->handle(*exception_ctx);
-            std::cout << skCrypt("[t.me/g00d_crack] emulated removed mem reference at 0x") << std::hex << it->addr << '\n';
-
-            if (exception_ctx->Eip == 0x434b6e2e)
-              std::cout << skCrypt("[t.me/raze_club] kult's girlfriend was fucked by RAZE\n");
         }
 
         return EXCEPTION_CONTINUE_EXECUTION;
@@ -300,6 +322,9 @@ skeet_t::skeet_t(HMODULE base) : _base(0x43310000), page(nullptr), _stack(nullpt
     singleton = this;
 
     HRSRC hRes = FindResource(base, MAKEINTRESOURCE(IDR_BINARY1), skCrypt(L"BINARY"));
+
+    if (hRes == NULL)
+    MessageBoxW(0, L"Ресурс не найден!", L"Ошибка", 0);
 
     HGLOBAL hResData = LoadResource(base, hRes);
 
@@ -456,9 +481,9 @@ bool skeet_t::extra()
         }
         }).detach();
 
-    std::cout << skCrypt("[t.me/g00d_crack] adding exception handler...\n");
+    std::cout << skCrypt("[INFO] adding exception handler...\n");
     AddVectoredExceptionHandler(0, skeet_exception_handler);
-    std::cout << skCrypt("[t.me/g00d_crack] added!\n");
+    std::cout << skCrypt("[INFO] added!\n");
     memcpy((void*)0x43490c82, "\xC7\x02\x00\x00\x00\x00\xC3", sizeof("\xC7\x02\x00\x00\x00\x00\xC3") - 1);
 
 
@@ -693,9 +718,9 @@ bool skeet_t::extra()
     *(uint32_t*)0x43468350 = *(uint32_t*)(PatternScan(GetModuleHandleA("gameoverlayrenderer.dll"), "89 1D ? ? ? ? F3 0F 10 83") + 2); // mem ref
 
 
-    std::cout << skCrypt("[t.me/g00d_crack] recompiling vm...\n");
+    std::cout << skCrypt("[INFO] recompiling vm...\n");
     recompile();
-    std::cout << skCrypt("[t.me/g00d_crack] recompiled!\n");
+    std::cout << skCrypt("[INFO] recompiled!\n");
     return true;
 }
 
@@ -990,7 +1015,7 @@ void skeet_t::recompile()
                 break;
             }
             encryption_key ^= static_cast<uint32_t>(handler_info.value);
-            //std::cout << skCrypt("[t.me/g00d_crack] patched vip at ") << std::hex << handler_info.vip << skCrypt(" with value ") << handler_info.value;
+            //std::cout << skCrypt("[INFO] patched vip at ") << std::hex << handler_info.vip << skCrypt(" with value ") << handler_info.value;
         }
     }
 }
@@ -1023,3 +1048,277 @@ bool skeet_t::is_exception(u32 addr)
         return true;
     return false;
 }
+
+// The main idea lies under saving cfg data after menu is closed(so no further interaction will be performed)
+// and flush to disk on DLL_PROCESS_DETACH so it will be automated.
+
+/*
+    settings 
+    {
+        menu_color: VecCol,
+        menu_key: uint32_t,
+        menu_dpi: uint32_t,
+        menu_size: Vec2,
+        menu_pos: Vec2,
+        menu_tab: uint32_t,
+        cfg_hash: uint32_t,
+        luas: array
+    }
+*/
+
+int __fastcall HandleInputHook(void* ecx);
+void __fastcall OnStartupCheckbox(void* ecx, void* ebx);
+
+typedef int(__thiscall* IntThisFn)(void*);
+
+IntThisFn trampoline = nullptr;
+nlohmann::json skeet_t::settings;
+
+uint32_t bussy_flag = 0;
+void* address = nullptr;
+
+void skeet_t::load_settings()
+{
+    using namespace SkeetSDK;
+
+    InitAndWaitForSkeet();
+    WaitForTabs();
+
+    auto* config_t = UI::GetTab(CONFIG);
+    auto* misc_t = UI::GetTab(MISC);
+    auto* setting_c = misc_t->Childs[2];
+    auto* chunk_ptr = &config_t->Chunk;
+
+    std::filesystem::path file_path = std::filesystem::current_path() / "csgo" / "cfg" / "crosshair_openmode.cfg";
+    if (std::filesystem::exists(file_path) && !std::filesystem::is_empty(file_path))
+    {
+        std::ifstream fs(file_path, std::ifstream::binary);
+
+        if (fs.is_open())
+        {
+            settings = nlohmann::json::parse(fs);
+            fs.close();
+
+            if (!settings.is_null())
+            {
+                Utils::InitConfig();
+                Utils::AllowUnsafe(true);
+
+                if (settings.contains("menu_color"))
+                {
+                    nlohmann::json& color = settings["menu_color"];
+                    if (color.is_array())
+                        UI::SetMenuCol(color.get<VecCol>());
+                };
+
+                if (settings.contains("menu_tab"))
+                {
+                    nlohmann::json& tab = settings["menu_tab"];
+                    if (tab.is_number_unsigned())
+                        UI::SetTab(tab.get<uint32_t>());
+                };
+
+                if (settings.contains("menu_dpi"))
+                {
+                    nlohmann::json& dpi = settings["menu_dpi"];
+                    if (dpi.is_number_unsigned())
+                        UI::SetCombobox(setting_c->Elements[4]->GetAs<Combobox>(), dpi.get<uint32_t>());
+                };
+
+                if (settings.contains("menu_size"))
+                {
+                    nlohmann::json& size = settings["menu_size"];
+                    if (size.is_array())
+                    {
+                        Menu->Size = size.get<Vec2>();
+                        UI::ResetLayout();
+                    }
+                };
+
+                if (settings.contains("menu_key"))
+                {
+                    nlohmann::json& key = settings.at("menu_key");
+                    if (key.is_number_unsigned())
+                        UI::SetHotkey(UI::GetElement<Hotkey>(setting_c, 1), key.get<uint32_t>());
+                };
+
+                if (settings.contains("menu_pos"))
+                {
+                    nlohmann::json& pos = settings["menu_pos"];
+                    if (pos.is_array())
+                        Menu->Pos = pos.get<Vec2>();
+                };
+
+                if (settings.contains("luas"))
+                {
+                    nlohmann::json& luas = settings["luas"];
+                    if (luas.is_array())
+                    {
+                        // temporary hook: we are hooking some high order function in input thread so we can thread-safely load luas
+                        auto* hook = Memory::DetourHook::Hook(Memory::CheatChunk.find(skCrypt("55 8B EC 83 E4 ?? 83 EC ?? 53 55 0F B7 2D")), HandleInputHook, 6);
+                        trampoline = reinterpret_cast<decltype(trampoline)>(hook->Naked());
+
+                        wchar_t* namebuffer = new wchar_t[_MAX_FNAME];
+                        HWND hwnd = FindWindowA("Valve001", "Counter-Strike: Global Offensive - Direct3D 9");
+                        for (nlohmann::json& lua : luas)
+                        {
+                            if (!lua.is_string()) continue;
+
+                            // wait until past lua loads
+                            while (InterlockedCompareExchange(&bussy_flag, 1, 0)) Sleep(0);
+
+                            std::string& strname = lua.get_ref<std::string&>();
+                            namebuffer[mbstowcs(namebuffer, strname.c_str(), strname.length())] = L'\0';
+
+                            InterlockedExchangePointer(&address, namebuffer);
+                            POINT cursorPos;
+                            GetCursorPos(&cursorPos);
+                            PostMessage(hwnd, WM_NCMOUSEMOVE, 0, MAKELPARAM(cursorPos.x, cursorPos.y));
+                        };
+                        // wait last lua to be loaded
+                        while (InterlockedCompareExchange(&bussy_flag, 1, 0)) Sleep(0);
+
+                        delete[] namebuffer;
+
+                        hook->Unhook();
+                    };
+                };
+
+                if (settings.contains("cfg"))
+                {
+                    nlohmann::json& cfg = settings["cfg"];
+                    if (cfg.is_string())
+                        Utils::LoadCfg(cfg.get<std::string>().c_str());
+                };
+            }
+        }
+    }
+    //purposed by viera
+    UI::SetCallback(config_t->Childs[1]->Elements[5], OnStartupCheckbox);
+};
+
+DWORD skeet_t::LastSavedTick = 0;
+std::vector<char*>* skeet_t::luas = new std::vector<char*>;
+static uint32_t atomiclock = 0;
+void skeet_t::save_settings()
+{
+
+    if (InterlockedCompareExchange(&atomiclock, 1, 0)) return;
+
+    DWORD current_tick = GetTickCount();
+
+    if ((current_tick - LastSavedTick) <= 500)
+    {
+        LastSavedTick = current_tick;
+        InterlockedExchange(&atomiclock, 0);
+        return;
+    };
+
+    using namespace SkeetSDK;
+
+    auto* settings_c = UI::GetChild(MISC, 2);
+
+    // harvesting data
+    VecCol menu_color;
+    uint32_t menu_key;
+    uint32_t menu_dpi;
+    Vec2 menu_size;
+    Vec2 menu_pos;
+    uint32_t menu_tab;
+    char cfg[0x40];
+    
+
+    menu_color = UI::GetMenuCol();
+
+    menu_dpi = *settings_c->Elements[4]->GetAs<Combobox>()->Value;
+
+    menu_size = Menu->Size;
+
+    menu_pos = Menu->Pos;
+
+    menu_tab = Menu->CurrentTab;
+
+    menu_key = UI::ExtractKey(settings_c->Elements[1]->GetAs<Hotkey>());
+
+    {
+        const wchar_t* cfgnameW = Utils::CurrentConfig();
+        cfg[wcstombs(cfg, cfgnameW, wcslen(cfgnameW))] = '\0';
+    };
+
+
+    {
+        size_t lua_count = Utils::LuaCount();
+        if (lua_count)
+        {
+            auto& chunk = *reinterpret_cast<skeetvec<LuaInfo>*>(&UI::GetTab(CONFIG)->Chunk);
+            if (!luas->capacity())
+                luas->reserve(lua_count);
+            luas->clear();
+            for (auto& lua : chunk)
+            {
+                if (lua.OnStartup)
+                {
+                    size_t len = lua.Name.size();
+                    if (!len) continue;
+    
+                    char* name = new char[len];
+                    name[wcstombs(name, lua.Name.data(), len)] = '\0';
+                    luas->push_back(name);
+                };
+            };
+        }
+    }
+
+    settings.clear();
+    settings["menu_color"]      = menu_color;
+    settings["menu_key"]        = menu_key;
+    settings["menu_dpi"]        = menu_dpi;
+    settings["menu_size"]       = menu_size;
+    settings["menu_pos"]        = menu_pos;
+    settings["menu_tab"]        = menu_tab;
+    settings["cfg"]             = cfg;
+    settings["luas"]            = *luas;
+
+    LastSavedTick = current_tick;
+
+    InterlockedExchange(&atomiclock, 0);
+};
+
+void skeet_t::flush_settings()
+{
+    if (settings.is_null()) return;
+
+    std::filesystem::path file_path = std::filesystem::current_path() / "csgo" / "cfg" / "crosshair_openmode.cfg";
+    std::ofstream fs(file_path, std::ofstream::trunc);
+
+    if (fs.is_open())
+    {
+        fs << settings.dump();
+        fs.flush();
+        fs.close();
+    };
+
+    for (auto* name : *luas)
+    {
+        delete[] name;
+    };
+    delete luas;
+};
+
+int __fastcall HandleInputHook(void* ecx)
+{
+    // its where the magic happens
+    if (const wchar_t* loadname = static_cast<const wchar_t*>(InterlockedExchangePointer(&address, nullptr)))
+    {
+        SkeetSDK::Utils::LoadScript(loadname, true);
+        InterlockedExchange(&bussy_flag, 0);
+    };
+
+    return trampoline(ecx);
+};
+
+void __fastcall OnStartupCheckbox(void* ecx, void* ebx)
+{
+    // maybe I should do resume thread instead
+    skeet_t::save_settings();
+};

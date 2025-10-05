@@ -63,6 +63,9 @@
     <ClInclude Include="skCrypter.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="SkeetSDK\skeetsdk.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="dllmain.cpp">
@@ -76,15 +79,15 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ResourceCompile Include="skeet.rc">
-      <Filter>Resource Files</Filter>
-    </ResourceCompile>
-  </ItemGroup>
-  <ItemGroup>
     <None Include="Binary\exports.json" />
     <None Include="Binary\skeet.bin">
       <Filter>Resource Files</Filter>
     </None>
     <None Include="VM\bytecode.json" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="skeet.rc">
+      <Filter>Resource Files</Filter>
+    </ResourceCompile>
   </ItemGroup>
 </Project>

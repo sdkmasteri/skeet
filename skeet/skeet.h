@@ -18,6 +18,9 @@ class skeet_t {
 	std::map<uint32_t, import_t> exports;
 	using handler_t = std::vector<vm_element_t>;
 	std::vector<handler_t> handlers;
+	static nlohmann::json settings;
+	static DWORD LastSavedTick;
+	static std::vector<char*>* luas;
 public:
 	skeet_t(HMODULE base);
 	skeet_t(const skeet_t&) = delete;
@@ -37,4 +40,8 @@ public:
 	static bool is_stack_range(u32 addr);
 	static bool is_image_range(u32 addr);
 	static bool is_exception(u32 addr);
+
+	static void load_settings();
+	static void save_settings();
+	static void flush_settings();
 };
