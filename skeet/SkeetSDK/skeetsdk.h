@@ -1107,7 +1107,7 @@ namespace SkeetSDK {
 		virtual void fn12() = 0;
 	public:
 		virtual void OnOpen() = 0;
-		virtual void ResetLayout();
+		virtual void ResetLayout() = 0;
 	};
 
 	typedef struct TabActivies
@@ -1163,7 +1163,7 @@ namespace SkeetSDK {
 		char			pad2[0x8];
 		skeetvec<PCTab>	Tabs;				// 0x54
 		char			pad3[0x4];
-		ETab			CurrentTab;			// 0x64
+		uint32_t		CurrentTab;			// 0x64
 		char			pad4[0x20];
 		unsigned int	MenuFadeTickCount;	// 0x88
 		FadeType		MenuFadeType;		// 0x8C
@@ -1363,7 +1363,7 @@ namespace SkeetSDK {
 		static void			ResetLayout();
 		static void			SetTab(uint32_t idx);
 		static PCTab		GetTab(ETab tab);
-		static ETab			GetActiveTab();
+		static uint32_t		GetActiveTab();
 		static PCTab		GetActiveCTab();
 		static void			SetVisible(PElement element, bool value);
 		static VecCol		GetMenuCol();
@@ -1950,7 +1950,7 @@ namespace SkeetSDK
 		return Menu->Tabs[tab];
 	};
 
-	ETab UI::GetActiveTab()
+	uint32_t UI::GetActiveTab()
 	{
 		return Menu->CurrentTab;
 	}
@@ -2725,7 +2725,7 @@ namespace SkeetSDK
 		Menu = SCLASS->Menu;
 		//do
 		//{
-			Menu = SCLASS->Menu;
+			//Menu = SCLASS->Menu;
 			//Sleep(10);
 		//} while (!Menu);
 

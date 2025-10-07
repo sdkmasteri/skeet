@@ -163,6 +163,7 @@
     <ClInclude Include="Binary\menu_fonts.h" />
     <ClInclude Include="Binary\pattern.h" />
     <ClInclude Include="framework.h" />
+    <ClInclude Include="saver.h" />
     <ClInclude Include="Json\json.hpp" />
     <ClInclude Include="MinHook\MinHook.h" />
     <ClInclude Include="ntstructs.h" />
@@ -182,6 +183,7 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="skeet.cpp" />
+    <ClCompile Include="saver.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Binary\exports.json" />

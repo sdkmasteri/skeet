@@ -1,6 +1,7 @@
 ﻿#include "pch.h"
 #include "skCrypter.h"
-//#define DLOG
+#include "saver.h"
+#define DLOG
 
 unsigned int start_signal = 0; // indicates that skeet fully loaded
 volatile HANDLE hthread = 0;
@@ -22,17 +23,17 @@ static void thread(HMODULE base) {
 
     std::cout << skCrypt("[INFO] entry succed, trying to load settings\n");
 
-    skeet_t::load_settings();
-
+    saver::load_settings();
+    
     DuplicateHandle(GetCurrentProcess(), GetCurrentThread(), GetCurrentProcess(), const_cast<HANDLE*>(&hthread), 0, FALSE, DUPLICATE_SAME_ACCESS);
-
+    
     uint8_t* bp_adr = reinterpret_cast<uint8_t*>(0x4338414C);
     std::cout << skCrypt("[INFO] setting breakpoint at ") << static_cast<void*>(bp_adr) << '\n';
     *bp_adr = 0xCC;
     while (1)
     {
         SuspendThread(hthread);
-        skeet_t::save_settings();
+        saver::save_settings();
     };
 }
 
@@ -53,7 +54,7 @@ BOOL APIENTRY DllMain( HMODULE hModule,
         CloseHandle(CreateThread(0, 0, reinterpret_cast<LPTHREAD_START_ROUTINE>(thread), hModule, 0, 0));
         break;
     case DLL_PROCESS_DETACH:
-        skeet_t::flush_settings();
+        saver::flush_settings();
         break;
     }
     return TRUE;
