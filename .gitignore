@@ -6,3 +6,4 @@ Debug/
 *.aps
 *.rc
 *.pch
+/skeet/Binary/skeet.bin.bak

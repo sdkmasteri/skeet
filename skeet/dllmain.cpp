@@ -1,7 +1,6 @@
 ﻿#include "pch.h"
 #include "skCrypter.h"
 #include "saver.h"
-#define DLOG
 
 unsigned int start_signal = 0; // indicates that skeet fully loaded
 volatile HANDLE hthread = 0;
@@ -52,9 +51,7 @@ BOOL APIENTRY DllMain( HMODULE hModule,
 #endif
         DisableThreadLibraryCalls(hModule);
         CloseHandle(CreateThread(0, 0, reinterpret_cast<LPTHREAD_START_ROUTINE>(thread), hModule, 0, 0));
-        break;
-    case DLL_PROCESS_DETACH:
-        saver::flush_settings();
+        std::atexit(saver::flush_settings);
         break;
     }
     return TRUE;

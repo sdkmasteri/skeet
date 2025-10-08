@@ -322,9 +322,6 @@ skeet_t::skeet_t(HMODULE base) : _base(0x43310000), page(nullptr), _stack(nullpt
 
     HRSRC hRes = FindResource(base, MAKEINTRESOURCE(IDR_BINARY1), skCrypt(L"BINARY"));
 
-    if (hRes == NULL)
-    MessageBoxW(0, L"Ресурс не найден!", L"Ошибка", 0);
-
     HGLOBAL hResData = LoadResource(base, hRes);
 
     LPVOID pData = LockResource(hResData);

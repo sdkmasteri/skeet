@@ -948,12 +948,6 @@ namespace SkeetSDK {
 		char				pad3[0x4];
 	} ListInfo, *PListInfo;
 
-	typedef struct SSpec
-	{
-		short FindedIndex;
-		short Indexies[];
-	} *PSpec;
-
 	// Listbox is 0xC0 bytes long
 	typedef struct Listbox : IElement
 	{
@@ -967,19 +961,22 @@ namespace SkeetSDK {
 		char				pad3[0x4];
 		VecCol				Color;				// 0x50
 		int					LeftPaddign;		// 0x54
-		char				pad4[0x8];
+		char				pad4[0x4];
+		ListBoxVar*			Vlaue;				// 0x5C
 		int					ElementSize;		// 0x60
 		PListInfo			PInfo;				// 0x64
 		char				pad5[0xC];
 		size_t				ItemsCount;			// 0x74
 		char				pad6[0x4];
-		int					SearchPresent;		// 0x7C
+		bool				SearchPresent;		// 0x7C
+		bool				SearchActive;		// 0x7D
+		char				pad7[0x2];
 		int					DisplayedCount;		// 0x80
 		ListboxInfo			Info;				// 0x84
 		skeetvec<wchar_t>	Search;				// 0xA0
-		char				pad7[0x4];
-		skeetvec<short>		SSpecs;				// 0xB0
 		char				pad8[0x4];
+		skeetvec<short>		SSpecs;				// 0xB0
+		char				pad9[0x4];
 	} *PListbox;
 
 	// Textbox is 0xE8 bytes long
@@ -1188,20 +1185,20 @@ namespace SkeetSDK {
 
 	struct RBTree
 	{
-		    RBNodeBase* leftmost;
-		    RBNodeBase* root;
-		    RBNodeBase* rightmost;
-		    RBNodeBase* header;
-		    size_t unkn;
-		    size_t count;
+		    RBNodeBase* leftmost;	// 0x58
+		    RBNodeBase* root;		// 0x5C
+		    RBNodeBase* rightmost;	// 0x60
+		    RBNodeBase* header;		// 0x64
+		    char		pad[0x4];
+		    size_t		count;		// 0x6C
 	};
 
 	struct SLua
 	{
 		void*	LuaState;		// 0x44
 		char	pad2[0x10];
-		RBTree	LoadedLuaTree;	// 0x58: count 0x6C
-	} s;
+		RBTree	LoadedLuaTree;	// 0x58
+	};
 
 	typedef struct CLua
 	{
