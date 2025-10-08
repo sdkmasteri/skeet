@@ -4,6 +4,5 @@ Release/
 Debug/
 *.obj
 *.aps
-*.rc
 *.pch
 /skeet/Binary/skeet.bin.bak
