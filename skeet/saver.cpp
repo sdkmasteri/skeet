@@ -53,12 +53,12 @@ static HWND* p_hWnd = reinterpret_cast<HWND*>(0x433A068A);
 void saver::load_settings()
 {
     using namespace SkeetSDK;
+    InitAndWaitForSkeet();
 
 #ifdef HOOK_SUBCLASS
     subhook = Memory::DetourHook::Hook(Memory::CheatChunk.find("55 8B EC 8B 45 ?? 83 EC ?? 56"), Subclassproc, 6);
 #endif // HOOK_SUBCLASS
 
-    InitAndWaitForSkeet();
     if (!std::filesystem::exists(file_path) || std::filesystem::is_empty(file_path)) return;
 
     std::ifstream fs(file_path, std::ofstream::in | std::ifstream::binary);
@@ -187,11 +187,7 @@ void saver::load_settings()
 #ifdef HOOK_SUBCLASS
         PostMessage(*p_hWnd, 0x1337, 0, 0xDEAD);
 #endif
-
     }
-
-    //proposed by viera
-    UI::SetCallback(config_t->Childs[1]->Elements[5], OnStartupCheckbox);
 };
 
 DWORD saver::LastSavedTick = 0;
@@ -323,7 +319,10 @@ LRESULT WINAPI Subclassproc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam, 
               delete[] lua_name;
           }
           else
-              subhook->Unhook();
+          {
+              delete subhook;
+              SkeetSDK::UI::SetCallback(SkeetSDK::UI::GetChild(SkeetSDK::CONFIG, 1)->Elements[5], OnStartupCheckbox);
+          }
         }
         else if (lParam == 0x5ACE)
         {
@@ -349,7 +348,10 @@ LRESULT WINAPI WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 delete[] lua_name;
             }
             else
-                subhook->Unhook();
+            {
+                //proposed by viera
+                SkeetSDK::UI::SetCallback(SkeetSDK::UI::GetChild(SkeetSDK::CONFIG, 1)->Elements[5], OnStartupCheckbox);
+            }
         }
         else if (lParam == 0x5ACE)
         {
