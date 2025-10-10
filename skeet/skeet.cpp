@@ -259,14 +259,19 @@ static LONG __stdcall skeet_exception_handler(EXCEPTION_POINTERS* ExceptionInfo)
                 return EXCEPTION_CONTINUE_SEARCH;
             }
             std::cout << skCrypt("[INFO]") << std::dec << c - 1 << " | " << std::hex << " [RAX]: " << ctx.rax << " |  rip handling... " << ctx.current_rip << " to rip " << ctx.rip << " | total size " << std::dec << contexts.size() << "\n";
-            if (ctx.rip == 0x434E552C)
+            //if (ctx.rip == 0x434E552C)
+            //{
+            //    extern unsigned int start_signal;
+            //    InterlockedExchange(&start_signal, 1);
+            //};
+        }
+        else {
+            it->handle(*exception_ctx);
+            if (exception_ctx->Eip == 0x434b6e2e)
             {
                 extern unsigned int start_signal;
                 InterlockedExchange(&start_signal, 1);
             };
-        }
-        else {
-            it->handle(*exception_ctx);
         }
 
         return EXCEPTION_CONTINUE_EXECUTION;

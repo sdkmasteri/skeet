@@ -66,8 +66,8 @@ namespace SkeetSDK {
 	// UI signatures
 	typedef int(__fastcall* SetKeyFn)(void*, unsigned int, unsigned int);
 	typedef void(__fastcall* SetModeFn)(void*, void*, int);
-	typedef void(__fastcall* SetCheckFn)(void*, int, int);
-	typedef void(__fastcall* HideUiFn)(void*, void*, bool);
+	typedef void(__thiscall* SetCheckFn)(void*, bool);
+	typedef void(__thiscall* HideUiFn)(void*, bool);
 	typedef void(__thiscall* InsertFn)(void*, bool, void*);
 	typedef void* (__thiscall* AddLabelFn)(void*, bool, const wchar_t*);
 	typedef void* (__thiscall* AddButtonFn)(void*, void*, const wchar_t*, void*, void*);
@@ -148,6 +148,15 @@ namespace SkeetSDK {
 		PickerTint,
 		PickerHue,
 		PickerAlpha
+	};
+
+	enum LinkedType : uint8_t
+	{
+		LBOOL = 1,
+		LINTEGER = 3,
+		LCOLOR = 3,
+		LHOTKEY = 7,
+		LVECTOR = 12,
 	};
 
 	enum UiType : unsigned char
@@ -321,7 +330,10 @@ namespace SkeetSDK {
 
 		inline void set(unsigned int r, unsigned int g, unsigned int b, unsigned int a)
 		{
-			*this = VecCol(r, g, b, a);
+			this->r = r;
+			this->g = g;
+			this->b = b;
+			this->a = a;
 		};
 
 		inline void set(unsigned int hex)
@@ -362,10 +374,7 @@ namespace SkeetSDK {
 
 		friend inline void from_json(const nlohmann::json& j, VecCol& col)
 		{
-			col.r = j[0].get<uint32_t>();
-			col.g = j[1].get<uint32_t>();
-			col.b = j[2].get<uint32_t>();
-			col.a = j[3].get<uint32_t>();
+			col.set(j[0].get<uint32_t>(), j[1].get<uint32_t>(), j[2].get<uint32_t>(), j[3].get<uint32_t>());
 		};
 #endif
 	};
@@ -693,18 +702,34 @@ namespace SkeetSDK {
 		int		Font;		// 0x1C
 	};
 
+	struct MsgInfo
+	{
+		HWND hWnd;
+		UINT uMsg;
+		WPARAM wParam;
+		LPARAM lParam;
+	};
+
 	// placeholder
 	class IElement
 	{
-		virtual void fn0() = 0;
-		virtual void fn1() = 0;
-		virtual void fn2() = 0;
-		virtual void fn3() = 0;
-		virtual void fn4() = 0;
-		virtual void OnCfgLoad() = 0;
 	public:
-		virtual void AfterInteraction() = 0;
+		virtual void Decay(bool free) = 0;
+		virtual bool IsHovered(const Vec2& cursorpos) = 0;
+		virtual bool HandleMouse(const MsgInfo& msg, const Vec2& cursorpos) = 0;
+		virtual bool HandleInput(const MsgInfo& msg) = 0;
+	private:
+		virtual void Render() = 0;
+	public:
+		virtual void OnConfigLoad() = 0;
+		virtual void ResetInputState() = 0;
 		virtual void OnValueSet() = 0;
+		virtual void ResetInputStateIfShould() = 0;
+		virtual void HandleResize() = 0;
+		virtual void HandleDPI() = 0;
+	private:
+		virtual void fn11() = 0;
+		virtual void fn12() = 0;
 	};
 
 	// Slider is 0x124 bytes long
@@ -739,7 +764,7 @@ namespace SkeetSDK {
 		Header<Child>		Header;
 		Vec2				Pos;			// 0x20
 		Vec2				ActivateSize;	// 0x28
-		char				pad1[0x8];
+		Vec2				DefActivateSize;// 0x30
 		PXorW				CryptedName;	// 0x38
 		char				pad2[0x4];
 		skeetvec<Call>		Calls;			// 0x40
@@ -750,7 +775,8 @@ namespace SkeetSDK {
 		bool*				Value;			// 0x5C
 		Vec2				Size;			// 0x60
 		int					TextPadding;	// 0x68
-		int					SomeFlag;		// 0x6C idk whats that
+		bool				HoldingOn;		// 0x6C
+		char				pad5[0x3];
 		PElement			TiedElements;	// 0x70 tied elements which visible depends on checkbox value (points to the end of list)
 		void*				SomePtr1;		// 0x74 refers on TiedElements?
 	} *PCheckbox;
@@ -771,7 +797,7 @@ namespace SkeetSDK {
 		VecCol					Color;				// 0x50
 		int						LeftPaddign;		// 0x54
 		char					pad3[0x4];
-		int*					Value;				// 0x5C
+		int*					Value;				// 0x5C std::bitset<32>*
 		int						heigth;				// 0x60
 		char					pad4[0x4];
 		bool					Popup;				// 0x68
@@ -810,10 +836,11 @@ namespace SkeetSDK {
 	} HotkeyPop, *PHotkeyPop;
 
 	// HotkeyInfo is 0x28 bytes long
+	// Its 100% LinkedNode
 	typedef struct HotkeyInfo
 	{
 		char			pad1[0x10];
-		int				Key;		// 0x10
+		int				Key;		// 0x10 1bit toogled state, 31 bits key code
 		HotkeyMode		Mode;		// 0x14
 		char			pad[0x10];
 	} *PHotkeyInfo;
@@ -941,7 +968,7 @@ namespace SkeetSDK {
 
 	typedef struct ListboxInfo
 	{
-		char				pad1[0x4];
+		size_t				ScrollPosition;	// 0x84
 		int					SelectedItem;	// 0x88
 		char				pad2[0x4];
 		skeetvec<ListBoxVar>Items;			// 0x90
@@ -965,8 +992,11 @@ namespace SkeetSDK {
 		ListBoxVar*			Vlaue;				// 0x5C
 		int					ElementSize;		// 0x60
 		PListInfo			PInfo;				// 0x64
-		char				pad5[0xC];
-		size_t				ItemsCount;			// 0x74
+		bool				ScrollbarEnabled;	// 0x68
+		bool				ScrollbarActive;	// 0x69
+		char				pad5[0x2];
+		Vec2				ScrollbarPos;		// 0x6C
+		int					AbsoluteHeight;		// 0x74
 		char				pad6[0x4];
 		bool				SearchPresent;		// 0x7C
 		bool				SearchActive;		// 0x7D
@@ -1002,9 +1032,11 @@ namespace SkeetSDK {
 		void**			Vtable;			// 0x00
 		char			pad1[0x15];
 		UiType			Type;			// 0x19
-		char			pad2[0x1E];
+		Vec2			Pos;			// 0x20
+		Vec2			Size;			// 0x28
+		Vec2			Padding;		// 0x30
 		PXorW			crypted;		// 0x38
-		char			pad3[0x4];
+		char			pad3[0x4];		// shared ptr
 		skeetvec<Call>	Calls;			// 0x40
 		char			pad4[0x10];
 		void*			value;			// 0x5C
@@ -1090,12 +1122,12 @@ namespace SkeetSDK {
 	{
 	private:
 		virtual void fn0() = 0;
-		virtual void fn1() = 0;
+		virtual void IsHovered(const Vec2& cursorpos) = 0;
 		virtual void fn2() = 0;
 		virtual void fn3() = 0;
 		virtual void fn4() = 0;
-		virtual void fn5() = 0;
-		virtual void fn6() = 0;
+		virtual void OnConfigLoad() = 0;
+		virtual void fn6() = 0; // on interaction?
 		virtual void fn7() = 0;
 		virtual void fn8() = 0;
 		virtual void fn9() = 0;
@@ -1149,7 +1181,7 @@ namespace SkeetSDK {
 	{
 		void**			Vtable;				// 0x0
 		PCMenu			NextMenu;			// 0x4
-		char			pad1[0x4];
+		char			pad1[0x4];			// hWnd
 		Vec2			Pos;				// 0xC
 		Vec2			Size;				// 0x14
 		Vec2			MinSize;			// 0x1C
@@ -1337,7 +1369,7 @@ namespace SkeetSDK {
 		static SetKeyFn			SetKey;
 		static SetCheckFn		SetCheck;
 		static HideUiFn			HideUi;
-		static F2PFn			DeleteUi;
+		static ThisFn			DeleteUi;
 		static T2PFn			InsertTab;
 		static T2PFn			InsertChildr;
 		static InsertFn			InsertElem;
@@ -1369,7 +1401,7 @@ namespace SkeetSDK {
 		static void*		TieValue(PElement element, void* ptr);
 		static void			SetCallback(PElement elem, F2PFn func, void* ecx = NULL);
 		static void			DeleteElement(PElement element);
-		static void			SetCheckbox(PCheckbox checkbox, int value);
+		static void			SetCheckbox(PCheckbox checkbox, bool value);
 		static void			SetColorRGBA(PCPicker picker, VecCol Color);
 		static void			SetColorHSV(PCPicker picker, HSV Color);
 		static void			SetSlider(PSlider slider, int value);
@@ -1392,8 +1424,6 @@ namespace SkeetSDK {
 		static PCombobox	CreateCombobox(PChild child, const wchar_t* name, int* value, wchar_t** arr, size_t arrsize, bool sameline = false);
 		static PMultiselect CreateMultiselect(PChild child, const wchar_t* name, int* value, char** arr, size_t arrsize, bool sameline = false);
 		static PListbox		CreateListbox(PChild child, const wchar_t* name, int* value, wchar_t** arr, size_t arrsize, bool searchbox = true);
-		static void			AddListboxVar(PListbox list, const wchar_t* elem, size_t bsize = 0);
-		static void			RemoveListboxVar(PListbox list, size_t index);
 		static void			InsertChild(PCTab tab, void* child);
 		static PChild		CreateChild(PCTab tab, const wchar_t* name, Vec4_8t possize, bool modify);
 		static PCTab		CreateTab(const wchar_t* name, Vec2 pos);
@@ -1401,6 +1431,10 @@ namespace SkeetSDK {
 		static FORCECALL PElement		GetByName(PChild child, const wchar_t* name);
 		static FORCECALL PChild			GetChild(ETab tab, size_t index);
 		template<typename T> static T*	GetElement(PChild, size_t index);
+
+		// Deprecates
+		static [[deprecated("Wrong implementation")]] void	AddListboxVar(PListbox list, const wchar_t* elem, size_t bsize = 0);
+		static [[deprecated("Wrong implementation")]] void	RemoveListboxVar(PListbox list, size_t index);
 	};
 
 	class EventListener
@@ -1781,10 +1815,10 @@ namespace SkeetSDK
 	{
 		skeetvec<unsigned char> cfgchunk;
 		GetConfigData(cfgname, &cfgchunk);
-		if (!cfgchunk.empty())
+		if (cfgchunk.size())
 		{
 			*HashedCfgName = Hashi8(cfgname);
-			LoadConfig(Menu, cfgchunk._Unchecked_begin(), cfgchunk.size());
+			LoadConfig(Menu, cfgchunk.data(), cfgchunk.size());
 			AfterTabCfg(UI::GetTab(CONFIG));
 			AfterTabRage(UI::GetTab(RAGE));
 		};
@@ -1910,7 +1944,7 @@ namespace SkeetSDK
 	SetKeyFn		UI::SetKey			= nullptr;
 	SetCheckFn		UI::SetCheck		= nullptr;
 	HideUiFn		UI::HideUi			= nullptr;
-	F2PFn			UI::DeleteUi		= nullptr;
+	ThisFn			UI::DeleteUi		= nullptr;
 	T2PFn			UI::InsertTab		= nullptr;
 	T2PFn			UI::InsertChildr	= nullptr;
 	InsertFn		UI::InsertElem		= nullptr;
@@ -1933,7 +1967,7 @@ namespace SkeetSDK
 	void UI::ResetLayout()
 	{
 		Button* b = GetChild(MISC, 2)->Elements[11]->GetAs<Button>();
-		b->Calls[0].function(Menu, b);
+		b->Calls[0].function(b->Calls[0].ecx, b);
 	};
 
 	void UI::SetTab(uint32_t idx)
@@ -1959,7 +1993,7 @@ namespace SkeetSDK
 
 	void UI::SetVisible(PElement element, bool value)
 	{
-		HideUi(element, element, value);
+		HideUi(element, value);
 	};
 
 	VecCol UI::GetMenuCol()
@@ -2000,12 +2034,12 @@ namespace SkeetSDK
 
 	void UI::DeleteElement(PElement element)
 	{
-		DeleteUi(element, element->GetAs<Header<Child>>()->Parent->Header.Parent);
+		DeleteUi(element);
 	};
 
-	void UI::SetCheckbox(PCheckbox checkbox, int value)
+	void UI::SetCheckbox(PCheckbox checkbox, bool value)
 	{
-		SetCheck(checkbox, checkbox->Value[0], value);
+		SetCheck(checkbox, value);
 	};
 
 	void UI::SetColorRGBA(PCPicker picker, VecCol Color)
@@ -2028,7 +2062,7 @@ namespace SkeetSDK
 
 	void UI::SetCombobox(PCombobox combobox, uint32_t value)
 	{
-		combobox->Value[0] = value;
+		*combobox->Value = value;
 		combobox->OnValueSet();
 	};
 
@@ -2204,31 +2238,31 @@ namespace SkeetSDK
 			ptr->Info.Items.emplace_back(i++, skeetvec<wchar_t>(arr[i], arr[i] + wcslen(arr[i]) + 1));
 			ptr->SSpecs.push_back(i);
 		}
-		ptr->ItemsCount = arrsize;
+		ptr->AbsoluteHeight = arrsize;
 		InsertElement(child, ptr);
 		return ptr;
 	};
 
 	void UI::AddListboxVar(PListbox list, const wchar_t* elem, size_t bsize)
 	{
-		if (!list->ItemsCount)
+		if (!list->AbsoluteHeight)
 		{
 			list->Info.Items.reserve(40);
 			list->SSpecs.reserve(40);
 		};
-		list->Info.Items.emplace_back(list->ItemsCount, skeetvec<wchar_t>(elem, elem + wcslen(elem) + 1));
-		list->Info.SelectedItem = list->ItemsCount;
-		list->SSpecs.push_back(++list->ItemsCount);
+		list->Info.Items.emplace_back(list->AbsoluteHeight, skeetvec<wchar_t>(elem, elem + wcslen(elem) + 1));
+		list->Info.SelectedItem = list->AbsoluteHeight;
+		list->SSpecs.push_back(++list->AbsoluteHeight);
 	};
 
 	void UI::RemoveListboxVar(PListbox list, size_t index)
 	{
-		if (!list->ItemsCount || index >= list->ItemsCount) return;
+		if (!list->AbsoluteHeight || index >= list->AbsoluteHeight) return;
 		list->SSpecs.resize(list->SSpecs.size() - 1);
 		list->Info.Items.erase(std::next(list->Info.Items.begin(), index));
-		list->Info.SelectedItem = --list->ItemsCount - 1;
+		list->Info.SelectedItem = --list->AbsoluteHeight - 1;
 
-		for (size_t i = index; i < list->ItemsCount; i++)
+		for (size_t i = index; i < list->AbsoluteHeight; i++)
 		{
 			list->Info.Items[i].Index--;
 		};
@@ -2471,15 +2505,15 @@ namespace SkeetSDK
 		int width, heigth;
 		ExReadFile(&textureChunk, filename);
 		if (textureChunk.empty()) return;
-		if (Renderer::LoadTexture(type, textureChunk._Unchecked_begin(), textureChunk.size(), &width, &heigth, &rawContent))
+		if (Renderer::LoadTexture(type, textureChunk.data(), textureChunk.size(), &width, &heigth, &rawContent))
 		{
 			int pxielSize = rawContent.size() / 4;
 			if (pxielSize != 0) {
-				unsigned int* ptr = (unsigned int*)rawContent._Unchecked_begin();
+				unsigned int* ptr = (unsigned int*)rawContent.data();
 				for (int i = 0; i < pxielSize; ++i)
 					ptr[i] = _rotr(_byteswap_ulong(ptr[i]), 8);
 			}
-			int id = SCLASS->IRenderer->AddTexture(rawContent._Unchecked_begin(), width, heigth, width * heigth * 4, 0, 0);
+			int id = SCLASS->IRenderer->AddTexture(rawContent.data(), width, heigth, width * heigth * 4, 0, 0);
 			if (id > 0)
 			{
 				texture.type = type;
@@ -2517,10 +2551,10 @@ namespace SkeetSDK
 		}
 
 		if (pxielSize == 0) return;
-		unsigned int* ptr = (unsigned int*)rawContent._Unchecked_begin();
+		unsigned int* ptr = (unsigned int*)rawContent.data();
 		for (int i = 0; i < pxielSize; ++i)
 			ptr[i] = _rotr(_byteswap_ulong(ptr[i]), 8);
-		int id = SCLASS->IRenderer->AddTexture(rawContent._Unchecked_begin(), width, heigth, width * heigth * 4, 0, 0);
+		int id = SCLASS->IRenderer->AddTexture(rawContent.data(), width, heigth, width * heigth * 4, 0, 0);
 		if (id > 0)
 		{
 			texture.type = type;
@@ -2688,7 +2722,7 @@ namespace SkeetSDK
 #endif // SDK_CLIENT_IMP
 	void WaitForTabs()
 	{
-		while (Menu->Tabs._Unchecked_begin() == nullptr || Menu->Tabs[LUA] == nullptr || Menu->Tabs[LUA]->Childs[1] == nullptr) Sleep(0);
+		while (Menu->Tabs.data() == nullptr || Menu->Tabs[LUA] == nullptr || Menu->Tabs[LUA]->Childs[1] == nullptr) Sleep(0);
 	};
 
 #define DECLASSIG(left, right) left = reinterpret_cast<decltype(left)>(right) 
