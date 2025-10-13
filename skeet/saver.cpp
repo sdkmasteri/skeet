@@ -30,7 +30,6 @@ namespace nlohmann {
 }
 
 #ifdef HOOK_SUBCLASS
-#include <CommCtrl.h>
 SkeetSDK::Memory::CHooked* subhook = nullptr;
 LRESULT WINAPI Subclassproc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData);
 #else
@@ -50,6 +49,14 @@ static std::filesystem::path file_path = std::filesystem::current_path() / "csgo
 
 static HWND* p_hWnd = reinterpret_cast<HWND*>(0x433A068A);
 
+#pragma pack(push, 1)
+struct LoadInfo
+{
+    char* cfgname;
+    std::vector<std::unique_ptr<wchar_t[]>> luas;
+    bool has_data;
+};
+#pragma pack(pop)
 void saver::load_settings()
 {
     using namespace SkeetSDK;
@@ -72,9 +79,60 @@ void saver::load_settings()
 
     settings = nlohmann::json::parse(fs);
     fs.close();
-    std::shared_ptr<wchar_t> a;
+
     if (!settings.is_null())
     {
+        LoadInfo* linfo = new LoadInfo;
+        if (settings.contains("luas"))
+        {
+            nlohmann::json& luas = settings["luas"];
+            if (luas.is_array())
+            {
+                Utils::InitConfig();
+                Utils::AllowUnsafe(true);
+#ifndef HOOK_SUBCLASS
+                g_OriginalWindowProc = (WNDPROC)SetWindowLongPtr(*p_hWnd, GWLP_WNDPROC, (LONG)WndProc);
+#endif // !HOOK_SUBCLASS
+                linfo->has_data = true;
+                linfo->luas.reserve(255);
+                for (nlohmann::json& lua : luas)
+                {
+                    if (!lua.is_string()) continue;
+
+                    std::unique_ptr<wchar_t[]> name = std::make_unique<wchar_t[]>(_MAX_FNAME);
+                    std::string& strname = lua.get_ref<std::string&>();
+
+                    size_t count = MultiByteToWideChar(CP_UTF8, 0, strname.c_str(), -1, name.get(), _MAX_FNAME);
+                    if (!count)
+                        continue;
+
+                    name.get()[count] = L'\0';
+                    linfo->luas.push_back(std::move(name));
+                };
+                linfo->luas.shrink_to_fit();
+
+                // it will break skeet input sometimes
+                //SetWindowLongPtr(*p_hWnd, GWLP_WNDPROC, (LONG)g_OriginalWindowProc);
+            };
+        };
+
+        if (settings.contains("cfg"))
+        {
+            nlohmann::json& cfg = settings["cfg"];
+
+            if (cfg.is_string())
+            {
+                linfo->has_data = true;
+                const std::string& cfgnamestr = cfg.get_ref<std::string&>().c_str();
+                size_t size = cfgnamestr.length();
+                char* cfgname = new char[size + 1];
+                memcpy(cfgname, cfgnamestr.c_str(), size);
+                cfgname[size] = '\0';
+                linfo->cfgname = cfgname;
+            }
+        };
+
+        PostMessage(*p_hWnd, 0x1337, reinterpret_cast<WPARAM>(linfo), 0x7ADAEEF4);
 
         if (settings.contains("menu_pos"))
         {
@@ -130,63 +188,6 @@ void saver::load_settings()
                 UI::SetHotkey(UI::GetElement<Hotkey>(setting_c, 1), key.get<uint32_t>());
         };
 
-        if (settings.contains("luas"))
-        {
-            nlohmann::json& luas = settings["luas"];
-            if (luas.is_array())
-            {
-                Utils::InitConfig();
-                Utils::AllowUnsafe(true);
-#ifndef HOOK_SUBCLASS
-                g_OriginalWindowProc = (WNDPROC)SetWindowLongPtr(*p_hWnd, GWLP_WNDPROC, (LONG)WndProc);
-#endif // !HOOK_SUBCLASS
-
-                for (nlohmann::json& lua : luas)
-                {
-                    if (!lua.is_string()) continue;
-
-                    wchar_t* namebuffer = new wchar_t[_MAX_FNAME];
-
-                    std::string& strname = lua.get_ref<std::string&>();
-
-                    size_t count = MultiByteToWideChar(CP_UTF8, 0, strname.c_str(), -1, namebuffer, _MAX_FNAME);
-                    if (!count)
-                    {
-                        delete[] namebuffer;
-                        continue;
-                    };
-
-                    namebuffer[count] = L'\0';
-
-                    PostMessage(*p_hWnd, 0x1337u, reinterpret_cast<WPARAM>(namebuffer), 0xDEAD);
-                };
-                // it will break skeet input sometimes
-                //SetWindowLongPtr(*p_hWnd, GWLP_WNDPROC, (LONG)g_OriginalWindowProc);
-            };
-        };
-
-        if (settings.contains("cfg"))
-        {
-            nlohmann::json& cfg = settings["cfg"];
-
-            if (cfg.is_string())
-            {
-#ifndef HOOK_SUBCLASS
-                Utils::LoadCfg(cfg.get_ref<std::string&>().c_str());
-#else
-                const std::string& cfgnamestr = cfg.get_ref<std::string&>().c_str();
-                size_t size = cfgnamestr.length();
-                char* cfgname = new char[size + 1];
-                memcpy(cfgname, cfgnamestr.c_str(), size);
-                cfgname[size] = '\0';
-                PostMessage(*p_hWnd, 0x1337u, reinterpret_cast<WPARAM>(cfgname), 0x5ACE);
-#endif
-            }
-        };
-
-#ifdef HOOK_SUBCLASS
-        PostMessage(*p_hWnd, 0x1337, 0, 0xDEAD);
-#endif
     }
 };
 
@@ -308,59 +309,58 @@ void __fastcall OnStartupCheckbox(void* ecx, void* ebx)
 #ifdef HOOK_SUBCLASS
 LRESULT WINAPI Subclassproc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData)
 {
-    if (*(UINT_PTR*)(0x434798D4) == uIdSubclass && uMsg == 0x1337u)
+    if (*(UINT_PTR*)(0x434798D4) == uIdSubclass && uMsg == 0x1337 && lParam == 0x7ADAEEF4)
     {
-        if (lParam == 0xDEAD)
+        LoadInfo* linfo = reinterpret_cast<LoadInfo*>(wParam);
+        if (linfo)
         {
-          wchar_t* lua_name = reinterpret_cast<wchar_t*>(wParam);
-          if (lua_name != nullptr)
-          {
-              SkeetSDK::Utils::LoadScript(lua_name, true);
-              delete[] lua_name;
-          }
-          else
-          {
-              delete subhook;
-              SkeetSDK::UI::SetCallback(SkeetSDK::UI::GetChild(SkeetSDK::CONFIG, 1)->Elements[5], OnStartupCheckbox);
-          }
-        }
-        else if (lParam == 0x5ACE)
-        {
-            char* cfgname = reinterpret_cast<char*>(wParam);
-            SkeetSDK::Utils::LoadCfg(cfgname);
-            delete[] cfgname;
+            if (linfo->has_data)
+            {
+                for (auto& name : linfo->luas)
+                {
+                    SkeetSDK::Utils::LoadScript(name.get(), true);
+                };
+
+                char* cfgname = linfo->cfgname;
+                if (cfgname)
+                {
+                    SkeetSDK::Utils::LoadCfg(cfgname);
+                    delete cfgname;
+                };
+            };
+            delete linfo;
         };
+        delete subhook;
         return 1;
-    }
-    return reinterpret_cast<SUBCLASSPROC>(subhook->Naked())(hWnd, uMsg, wParam, lParam, uIdSubclass, dwRefData);
+    };
+    return reinterpret_cast<decltype(Subclassproc)*>(subhook->Naked())(hWnd, uMsg, wParam, lParam, uIdSubclass, dwRefData);
 };
 #else
 LRESULT WINAPI WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-    if (uMsg == 0x1337)
+    if (uMsg == 0x1337 && lParam == 0x7ADAEEF4)
     {
-        if (lParam == 0xDEAD)
+        LoadInfo* linfo = reinterpret_cast<LoadInfo*>(wParam);
+        if (linfo)
         {
-            wchar_t* lua_name = reinterpret_cast<wchar_t*>(wParam);
-            if (lua_name != nullptr)
+            if (linfo->has_data)
             {
-                SkeetSDK::Utils::LoadScript(lua_name, true);
-                delete[] lua_name;
-            }
-            else
-            {
-                //proposed by viera
-                SkeetSDK::UI::SetCallback(SkeetSDK::UI::GetChild(SkeetSDK::CONFIG, 1)->Elements[5], OnStartupCheckbox);
-            }
-        }
-        else if (lParam == 0x5ACE)
-        {
-            char* cfgname = reinterpret_cast<char*>(wParam);
-            SkeetSDK::Utils::LoadCfg(cfgname);
-            delete[] cfgname;
+                for (auto& name : linfo->luas)
+                {
+                    SkeetSDK::Utils::LoadScript(name.get(), true);
+                };
+
+                char* cfgname = linfo->cfgname;
+                if (cfgname)
+                {
+                    SkeetSDK::Utils::LoadCfg(cfgname);
+                    delete cfgname;
+                };
+            };
+            delete linfo;
         };
         return 1;
-    }
+    };
     return CallWindowProc(g_OriginalWindowProc, hWnd, uMsg, wParam, lParam);
 };
 #endif // HOOK_SUBCLASS

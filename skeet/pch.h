@@ -7,8 +7,8 @@
 #ifndef PCH_H
 #define PCH_H
 #define NOMINMAX
-#undef DLOG
-#undef HOOK_SUBCLASS
+#define DLOG
+#define HOOK_SUBCLASS
 
 #include "Binary/ctx.h"
 #include "Binary/imports.h"

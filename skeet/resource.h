@@ -2,6 +2,7 @@
 // Microsoft Visual C++ generated include file.
 // Used by skeet.rc
 //
+#define __CBIN
 #define IDR_EXPORTS1                    101
 #define IDR_BINARY1                     102
 #define IDR_BYTECODE1                   103
