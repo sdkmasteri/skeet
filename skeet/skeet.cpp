@@ -155,7 +155,6 @@ void Handler::handle(CONTEXT& ctx)
 {
     if (ctx.Eip == 0x43495251) {
       std::memcpy((void*)ctx.Eax, initialization_info, sizeof(initialization_info));
-	  std::cout << std::hex << "[INFO] EAX: " << ctx.Eax << "\n";
     }
 
     switch (this->mnem) {
@@ -185,8 +184,28 @@ void Handler::handle(CONTEXT& ctx)
     ctx.Eip += this->len;
 }
 
+static PCONTEXT saver;
+
 static LONG __stdcall skeet_exception_handler(EXCEPTION_POINTERS* ExceptionInfo) {
     auto exception_ctx = ExceptionInfo->ContextRecord;
+    static int i = 0;
+    if (exception_ctx->Eip == 0x434938FF)
+    {
+        i++;
+        if (i == 314)
+        {
+            saver = new CONTEXT;
+            memcpy(saver, exception_ctx, sizeof(CONTEXT));
+            extern void LoadStub();
+            exception_ctx->Eip = (DWORD)LoadStub;
+            return EXCEPTION_CONTINUE_EXECUTION;
+        }
+        else if (i == 315)
+        {
+            memcpy(exception_ctx, saver, sizeof(CONTEXT));
+            delete saver;
+        };
+    };
 
     if (ExceptionInfo->ExceptionRecord->ExceptionCode != EXCEPTION_BREAKPOINT) {
       if (ExceptionInfo->ExceptionRecord->ExceptionCode == EXCEPTION_ACCESS_VIOLATION) {
@@ -201,25 +220,6 @@ static LONG __stdcall skeet_exception_handler(EXCEPTION_POINTERS* ExceptionInfo)
     static int c = 0;
     auto& ctx = contexts[c];
     if (exception_ctx->Eip >= skeet_t::getInstance()->base() && exception_ctx->Eip < skeet_t::getInstance()->base() + skeet_t::getInstance()->size()) {
-
-        // We will just check menu changing
-        // Its like listening event
-        // Scince its code part executed only when menu fades out
-        // We even can do this without hijacking or 
-        if (exception_ctx->Eip == 0x4338414C)
-        {
-
-            // perform pop edi
-            exception_ctx->Edi = *(DWORD*)exception_ctx->Esp;
-            exception_ctx->Esp += sizeof(exception_ctx->Edi);
-            exception_ctx->Eip++;
-            
-            extern volatile HANDLE hthread;
-            ResumeThread(hthread);
-
-            return EXCEPTION_CONTINUE_EXECUTION;
-        };
-
         auto it = std::find_if(handlers.begin(), handlers.end(), [&](const Handler& other) {
             return exception_ctx->Eip >= other.addr && exception_ctx->Eip < other.addr + other.len;
             });
@@ -258,20 +258,10 @@ static LONG __stdcall skeet_exception_handler(EXCEPTION_POINTERS* ExceptionInfo)
                 MessageBoxA(0, "undefined behaviour", "error", 2);
                 return EXCEPTION_CONTINUE_SEARCH;
             }
-            std::cout << skCrypt("[INFO]") << std::dec << c - 1 << " | " << std::hex << " [RAX]: " << ctx.rax << " |  rip handling... " << ctx.current_rip << " to rip " << ctx.rip << " | total size " << std::dec << contexts.size() << "\n";
-            //if (ctx.rip == 0x434E552C)
-            //{
-            //    extern unsigned int start_signal;
-            //    InterlockedExchange(&start_signal, 1);
-            //};
+            LPRINT(skCrypt("[INFO]") << std::dec << c - 1 << " | " << std::hex << " [RAX]: " << ctx.rax << " |  rip handling... " << ctx.current_rip << " to rip " << ctx.rip << " | total size " << std::dec << contexts.size() << "\n");
         }
         else {
             it->handle(*exception_ctx);
-            if (exception_ctx->Eip == 0x434b6e2e)
-            {
-                extern unsigned int start_signal;
-                InterlockedExchange(&start_signal, 1);
-            };
         }
 
         return EXCEPTION_CONTINUE_EXECUTION;
@@ -426,14 +416,14 @@ bool skeet_t::fix_imports()
         }
 
         if (exports.find(old_addr) == exports.end())
-            std::cout << "(fix_imports) failed to get " << std::hex << old_addr << "\n";
+            LPRINT("(fix_imports) failed to get " << std::hex << old_addr << "\n");
 
         auto& export_ = exports[old_addr];
 
         auto import_addr = (u32)(GetProcAddress(LoadLibraryA(export_.lib.c_str()), export_.name.c_str()));
 
         if (!import_addr) {
-            std::cout << "(fix_imports) failed to get " << std::hex << export_.lib.c_str() << " " << export_.name.c_str() << "\n";
+            LPRINT("(fix_imports) failed to get " << std::hex << export_.lib.c_str() << " " << export_.name.c_str() << "\n");
             return false;
         }
         
@@ -482,9 +472,9 @@ bool skeet_t::extra()
         }
         }).detach();
 
-    std::cout << skCrypt("[INFO] adding exception handler...\n");
+    LPRINT(skCrypt("[INFO] adding exception handler...\n"));
     AddVectoredExceptionHandler(0, skeet_exception_handler);
-    std::cout << skCrypt("[INFO] added!\n");
+    LPRINT(skCrypt("[INFO] added!\n"));
     memcpy((void*)0x43490c82, "\xC7\x02\x00\x00\x00\x00\xC3", sizeof("\xC7\x02\x00\x00\x00\x00\xC3") - 1);
 
 
@@ -719,9 +709,9 @@ bool skeet_t::extra()
     *(uint32_t*)0x43468350 = *(uint32_t*)(PatternScan(GetModuleHandleA("gameoverlayrenderer.dll"), "89 1D ? ? ? ? F3 0F 10 83") + 2); // mem ref
 
 
-    std::cout << skCrypt("[INFO] recompiling vm...\n");
+    LPRINT(skCrypt("[INFO] recompiling vm...\n"));
     recompile();
-    std::cout << skCrypt("[INFO] recompiled!\n");
+    LPRINT(skCrypt("[INFO] recompiled!\n"));
     return true;
 }
 
@@ -984,7 +974,7 @@ void skeet_t::recompile()
                 handlers_info[0].value = (u32)GetProcAddress(LoadLibraryA(export_.lib.c_str()), export_.name.c_str());
             }
             else {
-                std::cout << "failed to get " << std::hex << import_dest << " VIP " << handlers_info[0].vip << "\n";
+                LPRINT("failed to get " << std::hex << import_dest << " VIP " << handlers_info[0].vip << "\n");
             }
         }
 
@@ -1016,7 +1006,7 @@ void skeet_t::recompile()
                 break;
             }
             encryption_key ^= static_cast<uint32_t>(handler_info.value);
-            //std::cout << skCrypt("[INFO] patched vip at ") << std::hex << handler_info.vip << skCrypt(" with value ") << handler_info.value;
+            //LPRINT(skCrypt("[INFO] patched vip at ") << std::hex << handler_info.vip << skCrypt(" with value ") << handler_info.value);
         }
     }
 }

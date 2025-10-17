@@ -7,8 +7,6 @@
 #ifndef PCH_H
 #define PCH_H
 #define NOMINMAX
-#define DLOG
-#define HOOK_SUBCLASS
 
 #include "Binary/ctx.h"
 #include "Binary/imports.h"
@@ -17,5 +15,11 @@
 #include "MinHook/MinHook.h"
 #include <Windows.h>
 #include <iostream>
+
+#ifdef DLOG
+#define LPRINT(text) std::cout << text;
+#else
+#define LPRINT(text)
+#endif // DLOG
 
 #endif //PCH_H

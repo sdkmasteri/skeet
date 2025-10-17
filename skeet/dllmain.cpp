@@ -1,9 +1,6 @@
 ﻿#include "pch.h"
 #include "skCrypter.h"
-#include "saver.h"
 
-unsigned int start_signal = 0; // indicates that skeet fully loaded
-volatile HANDLE hthread = 0;
 static void thread(HMODULE base) {
 #ifdef DLOG
     system("cls");
@@ -16,24 +13,6 @@ static void thread(HMODULE base) {
     std::cout << skCrypt("[INFO] fixed!\n");
     skeet->extra();
     skeet->entry();
-
-    while (!InterlockedCompareExchange(&start_signal, 0, 1))
-        Sleep(0);
-
-    std::cout << skCrypt("[INFO] entry succed, trying to load settings\n");
-
-    saver::load_settings();
-    
-    DuplicateHandle(GetCurrentProcess(), GetCurrentThread(), GetCurrentProcess(), const_cast<HANDLE*>(&hthread), 0, FALSE, DUPLICATE_SAME_ACCESS);
-    
-    uint8_t* bp_adr = reinterpret_cast<uint8_t*>(0x4338414C);
-    std::cout << skCrypt("[INFO] setting breakpoint at ") << static_cast<void*>(bp_adr) << '\n';
-    *bp_adr = 0xCC;
-    while (1)
-    {
-        SuspendThread(hthread);
-        saver::save_settings();
-    };
 }
 
 BOOL APIENTRY DllMain( HMODULE hModule,
@@ -51,7 +30,6 @@ BOOL APIENTRY DllMain( HMODULE hModule,
 #endif
         DisableThreadLibraryCalls(hModule);
         CloseHandle(CreateThread(0, 0, reinterpret_cast<LPTHREAD_START_ROUTINE>(thread), hModule, 0, 0));
-        std::atexit(saver::flush_settings);
         break;
     }
     return TRUE;
